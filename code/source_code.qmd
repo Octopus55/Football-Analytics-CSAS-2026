@@ -1,0 +1,791 @@
+---
+title: Football Analytics Workshop
+author: Nicholas Pfeifer
+format:
+    revealjs:
+        output-file: presentation.html
+        embed-resources: true
+        slide-number: true
+        scrollable: true
+        transition: slide
+    html:
+      output-file: handout.html
+      toc: true
+      number-sections: false
+cite-method: citeproc
+---
+
+## Warm Up
+
+Our team has the first overall pick in this year's draft, and we need a Quarterback. Which prospect should we select?
+
+<details closed>
+<summary>What are some variables that could be helpful in evaluating a College Quarterback?</summary>
++ Level of Competition (team and conference)
++ College Statistics
++ Combine Metrics (e.g. 40 yd dash time)
++ Height, Hand Size
+</details>
+
+## Prospect A
+```{r}
+# packages for pizza charts
+library(tidyverse)
+library(nflverse)
+library(ggplot2)
+library(ggimage)
+```
+
+```{r}
+career_stats <- read.csv('../data/qb_college_career_stats.csv')
+career_stats <- career_stats %>% rename("completion %" = completion_percentage,
+                                        "td-int ratio" = td_int_ratio,
+                                        "total snaps" = total_offensive_plays
+                                        )
+
+make_pizza <- function(player_name, alias = NA) {
+  
+  cols <- c("passing_tds", "td-int ratio",
+          "rush_yards_per_game", "rushing_tds",
+          "total snaps", "games_played",
+          "yards_per_attempt", "completion %")
+  
+  specific_player <- player_name
+  player_index <- which(career_stats$full_name == specific_player)
+  player_start <- length(cols)*(player_index-1) + 1
+  player_end <- length(cols)*player_index
+  team_logo <- career_stats$logo_href[player_index]
+  
+  pizza_df <- career_stats %>%
+  reframe(across(all_of(cols), ~ cume_dist(.x) * 100)) %>%
+  tidyr::pivot_longer(everything(), names_to = "category", values_to = "value")
+  
+  pizza_df <- pizza_df[player_start:player_end,] %>%
+  mutate(
+    id = row_number(),
+    n = n(),
+    angle = 360 * ((9-id) - 0.5) / n,
+    angle_text = ifelse(90 < angle & angle < 270, angle + 180, angle),
+    slice_color = case_when(
+      value <= 33 ~ "red",
+      value < 67 ~ "yellow",
+      TRUE        ~ "green"
+    )
+  )
+  
+  rings <- c(10, 35, 60, 85, 110)
+  
+  if (is.character(alias)) {
+    ggplot(pizza_df, aes(x = id, y = value + 10, fill = slice_color)) +
+      geom_col(aes(y = 110), fill = "gray90", width = 1, color = "black") +
+      geom_col(width = 1, color = "black", alpha = 0.9) +
+      geom_col(aes(y = 10), fill = "gray90", width = 1) +
+      geom_hline(
+        yintercept = rings[2:4],
+        color = "black",
+        linewidth = 0.5,
+        alpha = 0.5,
+        linetype = 'dashed'
+      ) +
+      geom_hline(
+        yintercept = rings[c(1,5)],
+        color = "black",
+        linewidth = 0.5,
+      ) +
+      coord_polar(start = 0) +
+      scale_y_continuous(limits = c(0, 120)) +
+      scale_fill_manual(
+        values = c(
+          "red" = "#d73027",
+          "yellow" = "#fee08b",
+          "green" = "#1a9850"
+        ),
+        labels = c("0-33", "33-67", "67-100"),
+        breaks = c("red", "yellow", "green")
+      ) +
+      theme_void() +
+      theme(
+        plot.background = element_rect(fill = "#999999", color = NA),
+        legend.position = "top",
+        legend.margin = margin(t = 10),
+        plot.title = element_text(hjust = 0.5, size = 18, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5, size = 12)
+      ) +
+      labs(title = alias,
+           subtitle = "Percentiles Compared with First Round QBs from 2015-2025",
+           fill = '') +
+      geom_text(
+        data = pizza_df,
+        aes(x = id, y = 120,
+            label = str_to_title(gsub('_', ' ', category)),
+            angle = angle_text
+            ),
+        size = 4,
+        fontface = 'bold',
+        color = "gray90"
+        ) +
+      geom_text(
+        data = filter(pizza_df, value > 67),
+        aes(x = id, y = value,
+            label = round(value),
+            angle = angle_text
+            ),
+        size = 4,
+        fontface = 'bold',
+        color = "gray90"
+        ) +
+      geom_text(
+        data = filter(pizza_df, value <= 67),
+        aes(x = id, y = value + 20,
+            label = round(value),
+            angle = angle_text
+            ),
+        size = 4,
+        fontface = 'bold',
+        color = "black"
+        )
+  }
+  else {
+    ggplot(pizza_df, aes(x = id, y = value + 10, fill = slice_color)) +
+      geom_col(aes(y = 110), fill = "gray90", width = 1, color = "black") +
+      geom_col(width = 1, color = "black", alpha = 0.9) +
+      geom_col(aes(y = 10), fill = "gray90", width = 1) +
+      geom_hline(
+        yintercept = rings[2:4],
+        color = "black",
+        linewidth = 0.5,
+        alpha = 0.5,
+        linetype = 'dashed'
+      ) +
+      geom_hline(
+        yintercept = rings[c(1,5)],
+        color = "black",
+        linewidth = 0.5,
+      ) +
+      coord_polar(start = 0) +
+      scale_y_continuous(limits = c(0, 120)) +
+      scale_fill_manual(
+        values = c(
+          "red" = "#d73027",
+          "yellow" = "#fee08b",
+          "green" = "#1a9850"
+        ),
+        labels = c("0-33", "33-67", "67-100"),
+        breaks = c("red", "yellow", "green")
+      ) +
+      theme_void() +
+      theme(
+        plot.background = element_rect(fill = "#999999", color = NA),
+        legend.position = "top",
+        legend.margin = margin(t = 10),
+        plot.title = element_text(hjust = 0.5, size = 18, face = "bold"),
+        plot.subtitle = element_text(hjust = 0.5, size = 12)
+      ) +
+      labs(title = paste(specific_player, "College Profile", sep = " "),
+           subtitle = "Percentiles Compared with First Round QBs from 2015-2025",
+           fill = '') +
+      geom_text(
+        data = pizza_df,
+        aes(x = id, y = 120,
+            label = str_to_title(gsub('_', ' ', category)),
+            angle = angle_text
+            ),
+        size = 4,
+        fontface = 'bold',
+        color = "gray90"
+        ) +
+      geom_text(
+        data = filter(pizza_df, value > 67),
+        aes(x = id, y = value,
+            label = round(value),
+            angle = angle_text
+            ),
+        size = 4,
+        fontface = 'bold',
+        color = "gray90"
+        ) +
+      geom_text(
+        data = filter(pizza_df, value <= 67),
+        aes(x = id, y = value + 20,
+            label = round(value),
+            angle = angle_text
+            ),
+        size = 4,
+        fontface = 'bold',
+        color = "black"
+        ) +
+  geom_image(data = data.frame(x = 0.5, y = 0, img = team_logo),
+             aes(x = x, y = y, image = img),
+             size = 0.06,
+             asp = 1,
+             inherit.aes = FALSE)
+  }
+}
+```
+
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Zach Wilson', alias = 'QB Prospect A')
+```
+
+## Prospect B
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Josh Allen', alias = 'QB Prospect B')
+```
+
+## Prospect C
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Trey Lance', alias = 'QB Prospect C')
+```
+
+## Prospect D
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Patrick Mahomes', alias = 'QB Prospect D')
+```
+
+## Prospect A
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Zach Wilson')
+```
+
+## Prospect B
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Josh Allen')
+```
+
+## Prospect C
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Trey Lance')
+```
+
+## Prospect D
+```{r, fig.width=6, fig.height=6, fig.align='center'}
+make_pizza(player_name = 'Patrick Mahomes')
+```
+
+## Objectives
+
++ Become familiar with tidyverse functions and operations
++ Use nflverse to access NFL data
++ Answer football related questions
++ Create relevant visualizations
+
+## Packages
+
+```{r}
+#| echo: true
+
+library(tidyverse)
+library(nflverse)
+library(ggplot2)
+library(gt)
+```
+
+```{r}
+#| echo: true
+
+library(gridExtra)
+library(ggrepel)
+library(gtExtras)
+library(ggh4x)
+library(ggimage)
+library(ggforce)
+```
+
+```{r}
+options(warn = -1)
+```
+
+## Data (from [nflreadr](https://nflreadr.nflverse.com/articles/index.html))
+
++ load_pbp() - play by play data with 372 columns
+
++ load_teams() - colors and logos for each team
+
++ load_players() - player ids, headshots
+
++ load_combine() - NFL combine, draft information
+
++ load_sharpe_games() - game scores, results, and odds
+
++ load_contracts() - player contracts and salaries
+
++ load_next_gen_stats() - weekly and season long QB next gen stats
+
+## Important Functions and Operators
+
++ Pipe Operator
++ Select
++ Filter
++ Group By and Summarize
++ Left Join
+
+## Pipe Operator
+
+Pipe Operator `%>%`
+
++ Used to chain operations together
++ Assigns the chained dataframe to the first argument of the subsequent function
+
+## Filter
+
++ Only keeps rows of a dataframe that fit one or more specified criteria
+
+```{r}
+#| echo: true
+#df <- filter(df, column_1 == 'criteria 1', column_2 == 'criteria_2')
+j_chase <- load_pbp(seasons = 2021:2025) %>%
+  filter(receiver_player_name == "J.Chase", season_type == 'REG')
+```
+
+```{r}
+head(j_chase)
+```
+
+## Group By and Summarize
+
++ `group_by()` restructures a dataframe by creating groups based on one or more variables
++ `summarize()` then aggregates columns for each group
+
+```{r}
+#| echo: true
+#grouped <- group_by(df, column_1) %>% summarize(column_2_sum = sum(column_2))
+j_chase <- j_chase %>% group_by(season) %>%
+  summarize(team = max(posteam),
+            receptions = sum(complete_pass),
+            targets = n(),
+            yards = sum(receiving_yards, na.rm = TRUE),
+            touchdowns = sum(pass_touchdown)
+            )
+```
+
+```{r}
+head(j_chase)
+```
+
+## Verify Results
+
+```{r}
+head(j_chase)
+```
+
+![](../images/j_chase_career_stats.png){fig-cap="From espn.com"}
+
+[Ja'Marr Chase Career Stats ESPN](https://www.espn.com/nfl/player/stats/_/id/4362628/jamarr-chase)
+
+## Select and Left Join
+
++ `select()` can be used to keep a subset of columns in the dataframe
++ Prior to performing a join, it may be helpful to identify which columns are important
+
+```{r}
+#| echo: true
+# df <- df %>% select(column_1, column_2, column_5)
+cin_df <- load_teams() %>% filter(team_abbr == 'CIN') %>%
+  select(team_abbr, team_color, team_color2, team_color3, team_color4)
+```
+
++ To remove an individual column, a `-` sign can be used before the column name
+    + `select(-column_1)`
+
+## Left Join
+
++ `left_join()` matches observations between two dataframes based on a column acting as a key in both columns
++ Observations from the first (left) df are always kept
++ Observations from the second (right) df are appended to the first if the key column matches
+
+<details closed>
+<summary>What columns from the dataframes below should be the keys for a left join?</summary>
++ team and team_abbr
+</details>
+
+```{r}
+gt(head(j_chase))
+```
+
+```{r}
+gt(head(cin_df))
+```
+
+## Left Join
+
+Now the dataframe has columns for the team colors
+
+```{r}
+#| echo: true
+j_chase <- j_chase %>% left_join(cin_df, by = c('team' = 'team_abbr'))
+```
+
+```{r}
+gt(head(j_chase))
+```
+
+## ggplot2
+
+"Grammar of Graphics"
+
+```{r}
+#| echo: true
+ggplot(j_chase, aes(x = season, y = yards)) +
+  geom_line(size = 2, color = j_chase$team_color) +
+  geom_point(color = '#FFFFFF', size = 5) +
+  geom_point(color = j_chase$team_color4, size = 3) +
+  labs(x = 'Season', y = 'Receiving Yards',
+       title = "Ja'Marr Chase Receiving Yards by Season")
+```
+
+## Creating a Theme
+
+```{r}
+#| echo: true
+my_nfl_theme <- function() {
+  theme(
+    plot.title = element_text(family = "sans",
+                              face = "bold",
+                              size = rel(1.5),
+                              hjust = 0.5),
+    plot.title.position = "plot",
+    plot.subtitle = element_text(family = "sans",
+                                 size = rel(1),
+                                 hjust = 0.5),
+    panel.background = element_rect(fill = "#FFFFFF"),
+    panel.grid.major = element_line(color = "#000000",
+                                    linewidth = 0.1,
+                                    linetype = "dotted"),
+    axis.ticks = element_line(color = "#3333f3",
+                              linewidth = 0.5,
+                              linetype = "dashed"),
+    axis.title = element_text(color = "#000000",
+                              family = "sans",
+                              face = "bold",
+                              size = rel(1)),
+    axis.text = element_text(color = "#3333f3",
+                             family = "sans",
+                             face = "bold",
+                             size = rel(0.85))
+    )
+}
+```
+
+```{r}
+my_nfl_theme_dark <- function(..., base_size = 12) {
+  
+  theme(text = element_text(family = "Roboto", size = base_size, color = "#FFFFFF"),
+        axis.ticks = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_rect(fill = "#4C4C4C"),
+        plot.background = element_rect(fill = "#4C4C4C"),
+        legend.background = element_rect(fill = "#4C4C4C"),
+        axis.line = element_line(color = "#FFFFFF", linewidth = 2, lineend = "round"),
+        axis.text = element_text(color = "#FFFFFF"),
+        plot.title.position = "plot",
+        plot.title = element_text(size = 16,
+                                  face = "bold",
+                                  color = "#FFFFFF",
+                                  hjust = 0.5),
+        plot.subtitle = element_text(size = rel(1),
+                                     hjust = 0.5)
+        )
+}
+```
+
+## The Impact of a Theme
+
+```{r}
+no_theme <- ggplot(j_chase, aes(x = season, y = yards)) +
+  geom_line(size = 2, color = j_chase$team_color) +
+  geom_point(color = '#FFFFFF', size = 5) +
+  geom_point(color = j_chase$team_color4, size = 3) +
+  labs(x = 'Season', y = 'Receiving Yards',
+       subtitle = "Ja'Marr Chase Receiving Yards by Season",
+       title = "No Theme")
+
+minimal_theme <- ggplot(j_chase, aes(x = season, y = yards)) +
+  geom_line(size = 2, color = j_chase$team_color) +
+  geom_point(color = '#FFFFFF', size = 5) +
+  geom_point(color = j_chase$team_color4, size = 3) +
+  labs(x = 'Season', y = 'Receiving Yards',
+       subtitle = "Ja'Marr Chase Receiving Yards by Season",
+       title = "Theme Minimal") +
+  theme_minimal()
+
+custom_theme_light <- ggplot(j_chase, aes(x = season, y = yards)) +
+  geom_line(size = 2, color = j_chase$team_color) +
+  geom_point(color = '#FFFFFF', size = 5) +
+  geom_point(color = j_chase$team_color4, size = 3) +
+  labs(x = 'Season', y = 'Receiving Yards',
+       subtitle = "Ja'Marr Chase Receiving Yards by Season",
+       title = "Custom Theme Light") +
+  my_nfl_theme()
+
+custom_theme_dark <- ggplot(j_chase, aes(x = season, y = yards)) +
+  geom_line(size = 2, color = j_chase$team_color) +
+  geom_point(color = '#FFFFFF', size = 5) +
+  geom_point(color = j_chase$team_color4, size = 3) +
+  labs(x = 'Season', y = 'Receiving Yards',
+       subtitle = "Ja'Marr Chase Receiving Yards by Season",
+       title = "Custom Theme Dark") +
+  my_nfl_theme_dark()
+```
+
+```{r}
+library(gridExtra)
+plots_combined <- grid.arrange(no_theme, minimal_theme,
+                               custom_theme_light, custom_theme_dark,
+                               ncol = 2)
+```
+
+## 2025 Receiving Leaders Example
+
+```{r}
+#| echo: true
+# retrieve every regular season play
+pbp_2025 <- load_pbp(seasons = 2025) %>% filter(season_type == 'REG')
+
+# keep only pass plays
+pbp_2025 <- pbp_2025 %>% filter(play_type == 'pass')
+
+# filter out plays without down information like 2pt conversion attempts
+pbp_2025 <- pbp_2025 %>% filter(!is.na(down))
+
+# remove plays without an intended target
+pbp_2025 <- pbp_2025 %>% filter(!is.na(receiver_id))
+
+# group by receiver_id so that overlapping names are not grouped together (like T.Hill)
+receivers_2025 <- pbp_2025 %>% group_by(receiver_id, receiver) %>%
+  summarise(team = max(posteam),
+            receptions = sum(complete_pass),
+            targets = n(),
+            receiving_yards = sum(receiving_yards, na.rm = TRUE),
+            touchdowns = sum(pass_touchdown),
+            yards_after_catch = sum(yards_after_catch, na.rm = TRUE))
+
+# retrieve teams for color data
+teams <- load_teams()
+
+teams <- teams %>% select(team_abbr, team_color, team_color2)
+
+# join teams dataframe into the receivers dataframe
+receivers_2025 <- receivers_2025 %>% left_join(teams, by = c('team' = 'team_abbr'))
+
+# only keep players with 50 or more receptions
+receptions_50 <- receivers_2025 %>% filter(receptions >= 50)
+```
+
+##
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+
+ggplot(data = receptions_50, aes(x = targets, y = receptions)) +
+  geom_mean_lines(aes(x0 = targets, y0 = receptions), 
+                  size = 0.8,
+                  color = "black", 
+                  linetype = "dashed",
+                  alpha = 0.5) +
+  geom_point(shape = 21,
+             fill = receptions_50$team_color,
+             color = receptions_50$team_color2,
+             size = receptions_50$receptions / 20) +
+  geom_text_repel(aes(label = receiver),
+                  seed = 2055,
+                  box.padding = .5,
+                  family = 'Roboto',
+                  size = 4) +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 6),
+                     labels = scales::label_comma()) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 6),
+                     labels = scales::label_comma()) +
+  my_nfl_theme() +
+  labs(x = "Targets",
+       y = "Receptions",
+       title = "2025 Receiving Leaders",
+       subtitle = "Size = Receptions, (Min 50 Receptions)")
+```
+
+labels created with `geom_text_repel()` from ggrepel package
+
+## Tables with gt
+
+"Grammar of Tables"
+
++ Can display our dataframes as tables
+
+```{r}
+#| echo: true
+library(gt)
+library(gtExtras)
+j_chase %>% arrange(-yards) %>%
+  gt() %>% cols_hide(c(team_color, team_color2, team_color3, team_color4))
+```
+
+## Fastest 40 Yard Dash Data Setup
+```{r}
+#| echo: true
+combine_forty <- load_combine() %>% filter(!is.na(forty)) %>% arrange(forty)
+combine_forty <- combine_forty[1:14,]
+
+headshots <- load_players() %>% filter(pfr_id %in% combine_forty$pfr_id, !is.na(pfr_id)) %>%
+  select(pfr_id, headshot)
+
+team_logos <- load_teams(current = FALSE)
+nfl_logo <- team_logos$team_league_logo[[1]]
+team_logos <- team_logos %>% select(team_name, team_logo_espn)
+
+combine_forty <- combine_forty %>% left_join(headshots, by = 'pfr_id')
+combine_forty <- combine_forty %>% left_join(team_logos, by = c('draft_team' = 'team_name'))
+
+combine_forty <- combine_forty %>% select(season, pos, player_name, ht, wt, forty, headshot, team_logo_espn)
+
+combine_forty$team_logo_espn[is.na(combine_forty$team_logo_espn)] <- nfl_logo
+```
+
+```{r}
+combine_forty %>% gt()
+```
+
+##
+```{r}
+#| echo: true
+combine_forty_table <- combine_forty %>%
+  gt() %>%
+  tab_header(
+    title = "Fastest 40 Yard Dash Times",
+    subtitle = "At the NFL Combine since 2000 via PFR") %>%
+  gt_img_rows(headshot, height = 25) %>%
+  gt_img_rows(team_logo_espn, height = 25) %>%
+  cols_label(
+    season = "Year",
+    pos = "Pos",
+    team_logo_espn = "",
+    headshot = "",
+    player_name = "Player",
+    ht = "Height",
+    wt = "Weight",
+    forty = "40 Time") %>%
+  cols_move_to_start(columns = c(season, pos, team_logo_espn, headshot)) %>%
+  cols_align(align = "center", columns = c("season", "pos",
+                                           "team_logo_espn", "headshot",
+                                           "ht", "wt", "forty")) %>%
+  gt_color_box(forty, domain = c(4.2, 4.27),
+               palette = c("green", "lightblue"), accuracy = 0.01)
+```
+
+##
+
+```{r}
+combine_forty_table
+```
+
+## gt themes
+
+Built in gt themes
+
++ gt_theme_538()
++ gt_theme_dark()
++ gt_theme_dot_matrix()
++ gt_theme_espn()
++ gt_theme_excel()
++ gt_theme_guardian()
++ gt_theme_nytimes()
++ gt_theme_pff()
+
+## Theme pff
+
+```{r}
+combine_forty_table %>%
+  gt_theme_pff() %>%
+  opt_align_table_header(align = "center")
+```
+
+## Theme 538
+
+```{r}
+combine_forty_table %>%
+  gt_theme_538() %>%
+  opt_align_table_header(align = "center")
+```
+
+## Red Zone Target
+
+Our team struggled to score in the Redzone last season. Who are the best pass catchers in the Redzone from last season that we should consider acquiring?
+
+<details closed>
+<summary>Which dataset(s) should we use to answer this question?</summary>
++ pbp
+</details>
+
+<details closed>
+<summary>What are the steps we expect to carry out?</summary>
++ filter pbp to only include pass plays in the Redzone
++ group by the receiver
++ summarize receiving statistics (receptions, targets, touchdowns)
++ merge any additional information
++ make visualizations
+</details>
+
+## Red Zone Target Data Setup
+
+```{r}
+#| echo: true
+redzone <- load_pbp(seasons = 2025) %>% filter(season_type == 'REG',
+                                               play_type == 'pass',
+                                               !is.na(receiver_id),
+                                               yardline_100 < 20,
+                                               !is.na(down))
+
+redzone_grouped <- redzone %>% group_by(receiver_id, receiver, posteam) %>%
+  summarise(receptions = sum(complete_pass, na.rm = TRUE),
+            targets = n(),
+            touchdowns = sum(pass_touchdown, na.rm = TRUE),
+            receiving_yards = sum(receiving_yards, na.rm = TRUE))
+
+redzone_tds <- redzone %>% filter(pass_touchdown == 1) %>%
+  select(receiver_id, receiver, posteam, yardline_100, receiving_yards)
+
+redzone_grouped <- redzone_grouped %>% arrange(-touchdowns, -receptions)
+
+top_9 <- redzone_grouped$receiver[1:9]
+
+redzone_tds <- redzone_tds %>% filter(receiver %in% top_9) %>% arrange(receiver)
+
+teams_primary <- load_teams() %>% select(team_abbr, team_color)
+redzone_tds <- redzone_tds %>% left_join(teams_primary, by = c('posteam' = 'team_abbr'))
+redzone_grouped <- redzone_grouped %>% left_join(teams_primary, by = c('posteam' = 'team_abbr'))
+
+headshots <- select(load_players(), gsis_id, headshot)
+
+redzone_tds <- redzone_tds %>% left_join(headshots, by = c("receiver_id" = "gsis_id"))
+redzone_grouped <- redzone_grouped %>% left_join(headshots, by = c("receiver_id" = "gsis_id"))
+
+strip_df <- redzone_grouped %>%
+  distinct(receiver, posteam, team_color, headshot)
+```
+
+## 
+
+```{r, fig.height=6}
+library(ggh4x)
+library(ggimage)
+library(ggforce)
+
+ggplot(redzone_tds, aes(x = yardline_100, fill = posteam)) +
+  geom_density(alpha = 0.4) +
+  scale_fill_nfl() +
+  facet_wrap2(~ factor(receiver, levels = top_9), strip = strip_themed(
+    background_x = elem_list_rect(fill = strip_df$team_color))) +
+  my_nfl_theme() +
+  theme(strip.text = element_text(color = "white")) +
+  geom_point(shape = 21, x = 17.25, y = 0.12, size = 22, color = "black", fill = "white") + 
+  geom_image(data = strip_df[1:9,], aes(x = 17.25, y = 0.13,
+                                        image = headshot),
+             size = 0.45) +
+  labs(x = 'Yardline', y = 'Density')
+```
+
+## Resources
+
++ [Intro to NFL Analytics Book](https://bradcongelio.com/nfl-analytics-with-r-book/)
++ [nflreadr data dictionaries](https://nflreadr.nflverse.com/articles/index.html)
++ [ggplot2 theme documentation](https://ggplot2.tidyverse.org/reference/element.html)
++ [College Football package cfbfastR](https://sportsdataverse.r-universe.dev/cfbfastR)
