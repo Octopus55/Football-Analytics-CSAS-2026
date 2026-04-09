@@ -15,6 +15,15 @@ format:
 cite-method: citeproc
 ---
 
+## Outline
+
++ [Selecting a Quarterback Prospect](#warm-up)
++ [The Most Productive Receivers](#the-most-productive-receivers)
++ [To go for it on 4th Down?](#to-go-for-it-on-4th-down)
++ [Fastest 40 Yard Dash Times](#fastest-40-times)
++ [Red Zone Target](#red-zone-target)
++ [The Optimal Quarterback](#the-optimal-quarterback)
+
 ## Warm Up
 
 Our team has the first overall pick in this year's draft, and we need a Quarterback. Which prospect should we select?
@@ -35,16 +44,19 @@ Our team has the first overall pick in this year's draft, and we need a Quarterb
 library(tidyverse)
 library(nflverse)
 library(ggplot2)
+library(gridExtra)
 library(ggimage)
 ```
 
 ```{r}
+# data retrieved using cfbfastR package + API key
 career_stats <- read.csv('../data/qb_college_career_stats.csv')
 career_stats <- career_stats %>% rename("completion %" = completion_percentage,
                                         "td-int ratio" = td_int_ratio,
                                         "total snaps" = total_offensive_plays
                                         )
 
+# function for creating pizza plots
 make_pizza <- function(player_name, alias = NA) {
   
   cols <- c("passing_tds", "td-int ratio",
@@ -60,7 +72,7 @@ make_pizza <- function(player_name, alias = NA) {
   
   pizza_df <- career_stats %>%
   reframe(across(all_of(cols), ~ cume_dist(.x) * 100)) %>%
-  tidyr::pivot_longer(everything(), names_to = "category", values_to = "value")
+  pivot_longer(everything(), names_to = "category", values_to = "value")
   
   pizza_df <- pizza_df[player_start:player_end,] %>%
   mutate(
@@ -226,29 +238,54 @@ make_pizza <- function(player_name, alias = NA) {
 ```
 
 ```{r, fig.width=6, fig.height=6, fig.align='center'}
-make_pizza(player_name = 'Zach Wilson', alias = 'QB Prospect A')
+prospect_a <- make_pizza(player_name = 'Zach Wilson', alias = 'QB Prospect A')
+prospect_a
 ```
 
 ::: {.content-visible when-format="revealjs"}
 ## Prospect B
 :::
 ```{r, fig.width=6, fig.height=6, fig.align='center'}
-make_pizza(player_name = 'Josh Allen', alias = 'QB Prospect B')
+prospect_b <- make_pizza(player_name = 'Josh Allen', alias = 'QB Prospect B')
+prospect_b
 ```
 
 ::: {.content-visible when-format="revealjs"}
 ## Prospect C
 :::
 ```{r, fig.width=6, fig.height=6, fig.align='center'}
-make_pizza(player_name = 'Trey Lance', alias = 'QB Prospect C')
+prospect_c <- make_pizza(player_name = 'Trey Lance', alias = 'QB Prospect C')
+prospect_c
 ```
 
 ::: {.content-visible when-format="revealjs"}
 ## Prospect D
 :::
 ```{r, fig.width=6, fig.height=6, fig.align='center'}
-make_pizza(player_name = 'Patrick Mahomes', alias = 'QB Prospect D')
+prospect_d <- make_pizza(player_name = 'Patrick Mahomes', alias = 'QB Prospect D')
+prospect_d
 ```
+
+::: {.content-visible when-format="revealjs"}
+## Who Would You Take?
+:::
+```{r, fig.width=18, fig.height=6, fig.align='center'}
+prospect_a <- prospect_a + theme(plot.subtitle = element_blank(),
+                                 legend.position = 'none')
+prospect_b <- prospect_b + theme(plot.subtitle = element_blank(),
+                                 legend.position = 'none')
+prospect_c <- prospect_c + theme(plot.subtitle = element_blank(),
+                                 legend.position = 'none')
+prospect_d <- prospect_d + theme(plot.subtitle = element_blank(),
+                                 legend.position = 'none')
+
+prospects <- grid.arrange(prospect_a, prospect_b,
+                          prospect_c, prospect_d,
+                          nrow = 1)
+```
+::: {.content-visible unless-format="revealjs"}
+Who would you take?
+:::
 
 ::: {.content-visible when-format="revealjs"}
 ## Prospect A
@@ -278,9 +315,9 @@ make_pizza(player_name = 'Trey Lance')
 make_pizza(player_name = 'Patrick Mahomes')
 ```
 
-::: {.content-visible unless-format="revealjs"}
 ## Introduction
-:::
+
+Hi, I'm Nicholas Pfeifer - you can call me Nick. I am a Senior studying Statistics at UConn. For the past year I have worked alongside the UConn Women's Soccer team as a data analyst through the UConn Sports Statistics Experiential Learning Program. In the future I am looking to pursue a career in sports analytics. In my free time I enjoy watching Football and Formula 1, among other sports.
 
 ::: {.content-visible when-format="revealjs"}
 ## Objectives
@@ -291,7 +328,7 @@ make_pizza(player_name = 'Patrick Mahomes')
 :::
 
 + Become familiar with tidyverse functions and operations
-+ Use nflverse to access NFL data
++ Use `nflverse` to access NFL data
 + Answer football related questions
 + Create relevant visualizations
 
@@ -323,9 +360,18 @@ library(gtExtras)
 library(ggh4x)
 library(ggimage)
 library(ggforce)
+library(randomForest)
+library(fastshap)
+library(shapviz)
 ```
 
 ```{r}
+# there is a name conflict with "margin", randomForest will be reloaded later
+detach("package:randomForest", unload = TRUE)
+```
+
+```{r}
+# suppress warnings, default is 0
 options(warn = -1)
 ```
 
@@ -384,7 +430,7 @@ Pipe Operator `%>%`
 
 ```{r}
 #| echo: true
-#df <- filter(df, column_1 == 'criteria 1', column_2 == 'criteria_2')
+# df <- filter(df, column_1 == 'criteria 1', column_2 == 'criteria_2')
 j_chase <- load_pbp(seasons = 2021:2025) %>%
   filter(receiver_player_name == "J.Chase", season_type == 'REG')
 ```
@@ -406,7 +452,7 @@ head(j_chase)
 
 ```{r}
 #| echo: true
-#grouped <- group_by(df, column_1) %>% summarize(column_2_sum = sum(column_2))
+# grouped <- group_by(df, column_1) %>% summarize(column_2_sum = sum(column_2))
 j_chase <- j_chase %>% group_by(season) %>%
   summarize(team = max(posteam),
             receptions = sum(complete_pass),
@@ -494,6 +540,7 @@ Now the dataframe has columns for the team colors
 
 ```{r}
 #| echo: true
+# df <- df %>% left_join(df_2, by = c('df_column' = 'df_2_column'))
 j_chase <- j_chase %>% left_join(cin_df, by = c('team' = 'team_abbr'))
 ```
 
@@ -628,17 +675,18 @@ plots_combined <- grid.arrange(no_theme, minimal_theme,
                                ncol = 2)
 ```
 
+
 ## The Most Productive Receivers
 + Who were the most productive receivers from last season?
 
 + How much of their production can be derivied from air yards vs. yards after the catch?
 
 ::: {.content-visible when-format="revealjs"}
-## 2025 Receiving Leaders Example
+## 2025 Receiving Leaders Data Setup
 :::
 
 ::: {.content-visible unless-format="revealjs"}
-### 2025 Receiving Leaders Example
+### 2025 Receiving Leaders Data Setup
 :::
 
 ```{r}
@@ -665,17 +713,20 @@ receivers_2025 <- pbp_2025 %>% group_by(receiver_id, receiver) %>%
             yards_after_catch = sum(yards_after_catch, na.rm = TRUE),
             air_yards = receiving_yards - yards_after_catch)
 
-# Add in receiving yards from laterals
+# add in receiving yards from laterals
 laterals <- pbp_2025 %>% filter(!is.na(pbp_2025$lateral_receiver_player_name)) %>%
   select(lateral_receiver_player_id, lateral_receiving_yards) %>%
   group_by(lateral_receiver_player_id) %>%
   summarise(lateral_receiving_yards = sum(lateral_receiving_yards))
 
+# join laterals dataframe
 receivers_2025 <- receivers_2025 %>%
   left_join(laterals, by = c('receiver_id' = 'lateral_receiver_player_id'))
 
+# fill NA values with 0 for players without receiving yards from laterals
 receivers_2025[is.na(receivers_2025)] <- 0
   
+# add lateral receiving yards to existing receiving yards
 receivers_2025 <- receivers_2025 %>%
   mutate(receiving_yards = receiving_yards + lateral_receiving_yards)
 
@@ -691,7 +742,13 @@ receivers_2025 <- receivers_2025 %>% left_join(teams, by = c('team' = 'team_abbr
 receptions_50 <- receivers_2025 %>% filter(receptions >= 50)
 ```
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Receiving Leaders Plot
+:::
 
 ```{r}
 library(ggplot2)
@@ -725,12 +782,20 @@ ggplot(data = receptions_50, aes(x = targets, y = receptions)) +
 
 labels created with `geom_text_repel()` from ggrepel package
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Receiving Leaders With Positions
+:::
 
 ```{r}
+# get positions from players data
 positions <- load_players() %>% filter(last_season >= 2025) %>%
   select(gsis_id, position)
 
+# join positions dataframe by id
 receptions_50 <- receptions_50 %>%
   left_join(positions, by = c('receiver_id' = 'gsis_id'))
 
@@ -752,17 +817,27 @@ ggplot(data = receptions_50, aes(x = targets, y = receptions, color = position))
        subtitle = "Size = Receptions, (Min 50 Receptions)")
 ```
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### YAC vs Air Yards
+:::
 
 ```{r}
+# only keep players with 100 or more receptions and sort by receiving yards
 receptions_100 <- receptions_50 %>% filter(receptions >= 100) %>% arrange(-receiving_yards)
 
+# pivot to a long dataframe to set up multiple column plot
 yac_ay <- receptions_100 %>% pivot_longer(cols = c(yards_after_catch, air_yards)) %>%
   rename_at('value', ~ 'yards') %>%
   mutate(pct_of_total = yards / (receiving_yards - lateral_receiving_yards))
 
+# set the yardage type to a factor
 yac_ay$name <- factor(yac_ay$name, levels = c('yards_after_catch', 'air_yards'))
 
+# order rows such that most receiving yards is plotted first 
 yac_ay$receiver_id <- reorder(yac_ay$receiver_id, -yac_ay$receiving_yards)
 
 ggplot(data = yac_ay, aes(x = receiver_id, y = pct_of_total, fill = name)) +
@@ -781,19 +856,30 @@ ggplot(data = yac_ay, aes(x = receiver_id, y = pct_of_total, fill = name)) +
        title = 'Yards After Catch vs Air Yards')
 ```
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### YAC vs Air Yards by Position
+:::
 
 ```{r}
+# summarize 50 or more receptions dataframe by position
 pos_yac_ay <- receptions_50 %>% group_by(position) %>%
   summarise(yards_after_catch = sum(yards_after_catch),
             air_yards = sum(air_yards),
             receiving_yards = sum(receiving_yards) - sum(lateral_receiving_yards))
 
+# pivot to a long dataframe
 pos_yac_ay <- pos_yac_ay %>% pivot_longer(cols = c(yards_after_catch, air_yards)) %>%
   rename_at('value', ~ 'yards') %>%
   mutate(pct_of_total = yards / receiving_yards)
 
+# set the yardage type to a factor
 pos_yac_ay$name <- factor(pos_yac_ay$name, levels = c('yards_after_catch', 'air_yards'))
+
+# order the positions to be plotted by most receiving yards first
 pos_yac_ay$position <- reorder(pos_yac_ay$position, -pos_yac_ay$receiving_yards)
 
 ggplot(data = pos_yac_ay, aes(x = position, y = pct_of_total, fill = name)) +
@@ -820,9 +906,16 @@ ggplot(data = pos_yac_ay, aes(x = position, y = pct_of_total, fill = name)) +
 + Is it worth the risk to go for it?
 + How might you measure the effectiveness of going for it on 4th down?
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### 4th Down Data Setup
+:::
 
 ```{r}
+# retrieve every regular season 4th and 5 or less inside the 50 from 2016 through 2025
 fourth_down <- load_pbp(seasons = 2016:2025) %>% 
   filter(season_type == 'REG', down == 4, ydstogo <= 5, yardline_100 < 50)
 
@@ -831,17 +924,27 @@ fourth_down <- fourth_down %>%
 
 fourth_down <- fourth_down %>% select(season, play_type, epa, fourth_down_converted)
 
+# categorize a pass or run as going for it (1), and a field goal or punt as not (0)
 fourth_down$go_for_it <- case_when(fourth_down$play_type %in% c('pass', 'run') ~ 1,
                                    fourth_down$play_type %in% c('field_goal', 'punt') ~ 0)
 
+# summarize 4th down stats by the season
 fourth_down_seasons <- fourth_down %>% group_by(season) %>%
   summarise(go_for_it_pct = sum(go_for_it)/n(),
             conversion_pct = sum(fourth_down_converted)/sum(go_for_it),
             mean_epa = sum(epa)/n())
 
+# pivot to a long dataframe to setup multi-line plot
 fourth_down_seasons <- fourth_down_seasons %>%
   pivot_longer(cols = c(go_for_it_pct, conversion_pct, mean_epa))
+```
 
+::: {.content-visible unless-format="revealjs"}
+### 4th Down Efficiency
+:::
+
+```{r}
+# plot only conversion_pct and go_for_it_pct for now
 conversions <- fourth_down_seasons %>%
   filter(name %in% c('conversion_pct', 'go_for_it_pct'))
 
@@ -860,31 +963,47 @@ ggplot(conversions, aes(x = season, y = value, color = name)) +
   my_nfl_theme_dark()
 ```
 
+::: {.content-visible when-format="revealjs"}
 ## What is Expected Points?
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### What is Expected Points?
+:::
 
 + From the perspective of the Offense, expected points represents which team is more likely to score next and how much
 + If there is a 50% chance of scoring a touchdown (7 points), a 25% chance of scoring a field goal (3 points), and a 25% chance of scoring no points,
 
-$$EP = 0.5*7 + 0.25*3 + 0.25*0 = 4.25$$
+$$EP = 0.5 \times 7 + 0.25 \times 3 + 0.25 \times 0 = 4.25$$
+
+::: {.content-visible when-format="revealjs"}
+## Expected Points Continued
+:::
 
 + Can take into account down and distance, yardline, time remaining in the half, home field advantage, etc.
 + Modern EP models use many seasons of NFL play-by-play data
 
 <details closed>
 <summary>What does it mean if expected points is negative?</summary>
-It is more likely that the team currently on defense will score points next
++ It is more likely that the team currently on defense will score points next
 </details>
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
 
 ```{r}
+# retrieve every play from the 2025 regular season that has down information
 exp_points <- load_pbp(seasons = 2025) %>% filter(!is.na(down), season_type == 'REG')
 
+# keep only the down, yardline, and expected points columns
 exp_points <- exp_points %>% select(down, yardline_100, ep)
 
+# summarize the average expected points for each combination of down and yardline
 exp_points <- exp_points %>% group_by(down, yardline_100) %>%
   summarise(mean_ep = mean(ep))
 
+# set the down column to type character
 exp_points$down <- as.character(exp_points$down)
 
 ggplot(exp_points, aes(x = yardline_100, y = mean_ep, color = down)) +
@@ -893,7 +1012,8 @@ ggplot(exp_points, aes(x = yardline_100, y = mean_ep, color = down)) +
   scale_color_manual(name='',
                      labels=c('1st Down', '2nd Down',
                               '3rd Down', '4th Down'),
-                     values=c('darkgreen', 'mediumseagreen', 'mediumaquamarine', 'mediumturquoise')) +
+                     values=c('darkgreen', 'mediumseagreen',
+                              'mediumaquamarine', 'mediumturquoise')) +
   scale_x_continuous(breaks = seq(0, 100, 10)) +
   scale_y_continuous(breaks = seq(-3, 6)) +
   labs(x = 'Yards From Opposing Endzone', y = 'Average Expected Points',
@@ -908,7 +1028,13 @@ ggplot(exp_points, aes(x = yardline_100, y = mean_ep, color = down)) +
 + When a team is close to the opposing endzone, scoring a touchdown is not guaranteed. Neither is scoring on the extra point or 2pt conversion.
 </details>
 
+::: {.content-visible when-format="revealjs"}
 ## Expected Points Added
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Expected Points Added
+:::
 
 For a given play:
 
@@ -921,7 +1047,13 @@ Contextualizes a play:
 + A five yard play is more valuable on 1st down than on 3rd and long
 + Not all turnovers are equally costly
 
+::: {.content-visible unless-format="revealjs"}
+Learn more about EPA: [Beginner's Guide to EPA in the NFL](https://sportspassion.substack.com/p/the-beginners-guide-to-epa-in-the-nfl)
+:::
+
+::: {.content-visible when-format="revealjs"}
 ##
+:::
 
 ```{r}
 ggplot(fourth_down_seasons, aes(x = season, y = value, color = name)) +
@@ -957,13 +1089,7 @@ j_chase %>% arrange(-yards) %>%
   gt() %>% cols_hide(c(team_color, team_color2, team_color3, team_color4))
 ```
 
-::: {.content-visible when-format="revealjs"}
 ## Fastest 40 Times
-:::
-
-::: {.content-visible unless-format="revealjs"}
-### Fastest 40 Times
-:::
 
 + Our team has lacked speed offensively and defensively for the past couple of seasons.
 + What are some of the fastest 40 yard dash times recorded at the NFL Combine? 
@@ -974,26 +1100,34 @@ j_chase %>% arrange(-yards) %>%
 :::
 
 ::: {.content-visible unless-format="revealjs"}
-#### Fastest 40 Yard Dash Data Setup
+### Fastest 40 Yard Dash Data Setup
 :::
 
 ```{r}
 #| echo: true
+# retrieve every player with a valid 40 time and sort by the quickest time
 combine_forty <- load_combine() %>% filter(!is.na(forty)) %>% arrange(forty)
+
+# keep the 14 fastest rows (top 10 and ties)
 combine_forty <- combine_forty[1:14,]
 
+# obtain headshots from players data for the players in combine_forty
 headshots <- load_players() %>% filter(pfr_id %in% combine_forty$pfr_id, !is.na(pfr_id)) %>%
   select(pfr_id, headshot)
 
+# fetch team logos and save NFL logo for rookies
 team_logos <- load_teams(current = FALSE)
 nfl_logo <- team_logos$team_league_logo[[1]]
 team_logos <- team_logos %>% select(team_name, team_logo_espn)
 
+# join player headshots and team logo based on draft team
 combine_forty <- combine_forty %>% left_join(headshots, by = 'pfr_id')
 combine_forty <- combine_forty %>% left_join(team_logos, by = c('draft_team' = 'team_name'))
 
+# keep relevant variables for the table
 combine_forty <- combine_forty %>% select(season, pos, player_name, ht, wt, forty, headshot, team_logo_espn)
 
+# replace missing logos with the NFL logo (for rookies)
 combine_forty$team_logo_espn[is.na(combine_forty$team_logo_espn)] <- nfl_logo
 ```
 
@@ -1001,7 +1135,13 @@ combine_forty$team_logo_espn[is.na(combine_forty$team_logo_espn)] <- nfl_logo
 combine_forty %>% gt()
 ```
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Styling the Table
+:::
 
 ```{r}
 #| echo: true
@@ -1029,7 +1169,9 @@ combine_forty_table <- combine_forty %>%
                palette = c("green", "lightblue"), accuracy = 0.01)
 ```
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
 
 ```{r}
 combine_forty_table
@@ -1082,12 +1224,20 @@ combine_forty_table %>%
   opt_align_table_header(align = "center")
 ```
 
+::: {.content-visible when-format="revealjs"}
 ##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### 2026 Fastest 40 Times
+:::
 
 ```{r}
+# get all valid 40 times from the 2026 combine and sort by the quickest
 forty_2026 <- load_combine() %>% filter(!is.na(forty), season == 2026) %>%
   arrange(forty)
 
+# keep the 9 fastest times and relevant columns
 forty_2026 <- forty_2026[1:9,] %>% select(season, pos, school, player_name,
                                           ht, wt, forty)
 
@@ -1121,7 +1271,7 @@ Our team struggled to score in the Redzone last season. Who are the best pass ca
 <details closed>
 <summary>What are the steps we expect to carry out?</summary>
 + filter pbp to only include pass plays in the Redzone
-+ group by the receiver
++ group by the receiver(id)
 + summarize receiving statistics (receptions, targets, touchdowns)
 + merge any additional information
 + make visualizations
@@ -1137,41 +1287,95 @@ Our team struggled to score in the Redzone last season. Who are the best pass ca
 
 ```{r}
 #| echo: true
+
+# filter to include only pass plays from inside the redzone with an intended receiver
 redzone <- load_pbp(seasons = 2025) %>% filter(season_type == 'REG',
                                                play_type == 'pass',
                                                !is.na(receiver_id),
                                                yardline_100 < 20,
                                                !is.na(down))
 
+# summarize production in the redzone by each receiver(id)
 redzone_grouped <- redzone %>% group_by(receiver_id, receiver, posteam) %>%
   summarise(receptions = sum(complete_pass, na.rm = TRUE),
             targets = n(),
             touchdowns = sum(pass_touchdown, na.rm = TRUE),
             receiving_yards = sum(receiving_yards, na.rm = TRUE))
 
+# filter to obtain dataframe of all redzone passing touchdown plays
 redzone_tds <- redzone %>% filter(pass_touchdown == 1) %>%
   select(receiver_id, receiver, posteam, yardline_100, receiving_yards)
 
+# sort the redzone production dataframe by most touchdowns, receptions if tie
 redzone_grouped <- redzone_grouped %>% arrange(-touchdowns, -receptions)
 
+# obtain the top 9 receivers in terms of redzone touchdowns
 top_9 <- redzone_grouped$receiver[1:9]
 
+# only keep production for receivers in the top 9
+redzone_grouped <- redzone_grouped %>% filter(receiver %in% top_9)
+
+# filter to include redzone passing touchdown plays of the top 9 TD scorers
 redzone_tds <- redzone_tds %>% filter(receiver %in% top_9) %>% arrange(receiver)
 
+# retrieve teams for color data and join
 teams_primary <- load_teams() %>% select(team_abbr, team_color)
 redzone_tds <- redzone_tds %>% left_join(teams_primary, by = c('posteam' = 'team_abbr'))
 redzone_grouped <- redzone_grouped %>% left_join(teams_primary, by = c('posteam' = 'team_abbr'))
 
+# retrieve player headshots and join
 headshots <- select(load_players(), gsis_id, headshot)
 
 redzone_tds <- redzone_tds %>% left_join(headshots, by = c("receiver_id" = "gsis_id"))
 redzone_grouped <- redzone_grouped %>% left_join(headshots, by = c("receiver_id" = "gsis_id"))
 
+# dataframe for name strip colors in plot
 strip_df <- redzone_grouped %>%
   distinct(receiver, posteam, team_color, headshot)
 ```
 
-## 
+::: {.content-visible when-format="revealjs"}
+##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Red Zone Target Table
+:::
+
+```{r}
+redzone_grouped %>% ungroup() %>%
+  gt() %>%
+  tab_header(
+    title = "Redzone Receiving TD Leaders",
+    subtitle = "2025 Regular Season") %>%
+  gt_img_rows(headshot, height = 40) %>%
+  cols_hide(c(receiver_id, team_color)) %>%
+  gt_nfl_logos(columns = "posteam", height = 40) %>%
+  cols_label(
+    posteam = "Team",
+    headshot = "",
+    receiver = "Player",
+    receptions = "Receptions",
+    targets = "Targets",
+    touchdowns = "Touchdowns",
+    receiving_yards = "Receiving Yards") %>%
+  cols_move_to_start(columns = c(posteam, headshot, receiver)) %>%
+  cols_move_to_end(touchdowns) %>%
+  cols_align(align = "center", columns = c("posteam", "receptions",
+                                           "targets", "receiving_yards",
+                                           "touchdowns")) %>%
+  cols_align(align = "right", columns = c("headshot")) %>%
+  gt_color_box(touchdowns, domain = c(0, 12), palette = c("white", "red")) %>%
+  gt_theme_nytimes()
+```
+
+::: {.content-visible when-format="revealjs"}
+##
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Red Zone Target Density Plot
+:::
 
 ```{r, fig.height=6}
 library(ggh4x)
@@ -1202,42 +1406,54 @@ ggplot(redzone_tds, aes(x = yardline_100, fill = posteam)) +
   + Mobile?
 
 ::: {.content-visible unless-format="revealjs"}
-## Predictors
+### Predictors
 
 ::: {.table width=70%}
 |  |  |  |  |  |
-|:-------------------------|:--------------------------:|:---------------------------:|:-----------------------------------:|------------------------:|
-| age                      | average intended air yards | average time to throw       | bad throw percentage                | bad throws per game     |
-| batted balls percentage  | batted balls per game      | completion percentage       | completion percentage over expected | completions per game    |
-| draft position           | draft round                | experience                  | height                              | interception percentage |
-| interceptions per game   | on target percentage       | on target throws per game | pass attempts per game              | pass epa per attempt    |
-| pass epa per game        | pass tds per game          | passer rating               | pressure percentage                 | rpo plays per game      |
-| run epa per rush         | run epa per game           | rush attempts per game      | rush yards per game                 | school                  |
-| epa per play             | epa per game               | total qbr                   | td-int ratio                        | td percentage           |
-| throwaway percentage     | throwaways per game        | times blitzed per game      | times hit per game                  | times hurried per game  |
-| times pressured per game | weight                     | yards per attempt           | yards per game                      |                         |
+|:-------------------------|:--------------------------:|:---------------------------:|:-----------------------------------:|--------------------------:|
+| age                      | average intended air yards | average time to throw       | bad throw percentage                | bad throws per game       |
+| batted balls percentage  | batted balls per game      | completion percentage       | completion percentage over expected | completions per game      |
+| draft position           | draft round                | epa per game                | epa per play                        | experience                |
+| height                   | interception percentage    | interceptions per game       | on target percentage                | on target throws per game |
+| pass attempts per game   | pass epa per attempt       | pass epa per game           | pass tds per game                   | passer rating             |
+| pressure percentage      | rpo plays per game         | run epa per rush            | run epa per game                    | rush attempts per game    |
+| rush yards per game      | school                     | total qbr                   | td-int ratio                        | td percentage             |
+| throwaway percentage     | throwaways per game        | times blitzed per game       | times hit per game                  | times hurried per game    |
+| times pressured per game | weight                     | yards per attempt           | yards per game                      |                           |
 
 : Predictor Variables
 :::
 :::
 
+::: {.content-visible when-format="revealjs"}
 ## Definitions
+:::
 
-+ CPOE
-+ EPA
-+ Total QBR
-+ Passer Rating
+::: {.content-visible unless-format="revealjs"}
+### Definitions
+:::
 
++ CPOE - Completion Percentage Over Expected, A Quarterback's completion percentage compared to their expected completion percentage via Next Gen Stats
++ EPA - Expected Points Added contributed to the Quarterback, derived from historical play-by-play data and formulated by ESPN
++ Total QBR - An efficiency metric isolating a Quarterback's contributions to winning; on a 0-100 scale, can be interpreted as the probability that the Quarterback's team wins given all other things being equal (ESPN)
+
+::: {.content-visible when-format="revealjs"}
 ## Random Forest
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Random Forest Data Setup
+:::
 
 ```{r}
 start_season <- 2019
 
+# load every game from 2019 through 2025 and determine winner and loser
 games <- load_sharpe_games(seasons = start_season:2025)
 games$home_win <- case_when(games$result > 0 ~ 1, games$result < 0 ~ 0, games$result == 0 ~ 0)
 games$away_win <- case_when(games$result > 0 ~ 0, games$result < 0 ~ 1, games$result == 0 ~ 0)
 
-# regular season wins
+# compute regular season wins for each team in each season
 games <- games %>% filter(game_type == 'REG')
 
 qb_wins <- games %>%
@@ -1275,12 +1491,13 @@ qb_wins_majority <- qb_wins %>%
 
 qb_wins_majority <- qb_wins_majority %>% left_join(team_wins, by = c("season", "team"))
 
-# collect ids
+# collect ids for merging
 ids_df <- load_players() %>% filter(position == 'QB') %>% select(gsis_id, pfr_id, espn_id)
 qb_wins_majority <- qb_wins_majority %>% left_join(ids_df, by = c("qb_id" = "gsis_id"))
 qb_wins_majority <- qb_wins_majority %>% relocate(pfr_id, espn_id, .after = qb_id)
 
 
+# get QB statistics from Next Gen Stats and join
 ngs <- load_nextgen_stats(seasons = start_season:2025) %>% filter(week == 0) %>%
   select(player_gsis_id, season, avg_time_to_throw, avg_intended_air_yards,
          attempts, pass_yards, pass_touchdowns, interceptions, passer_rating,
@@ -1295,7 +1512,7 @@ qb_wins_majority <- qb_wins_majority %>%
   slice_max(order_by = attempts, n = 1) %>%
   ungroup()
 
-
+# get Pro Football Reference passing stats and join
 pfr <- load_pfr_advstats(seasons = start_season:2025, stat_type = 'pass', summary_level = 'season') %>%
   select(season, pfr_id, throwaways, bad_throws, bad_throw_pct, times_blitzed, times_hurried,
          times_hit, times_pressured, pressure_pct, batted_balls, on_tgt_throws,
@@ -1303,6 +1520,7 @@ pfr <- load_pfr_advstats(seasons = start_season:2025, stat_type = 'pass', summar
 
 qb_wins_majority <- qb_wins_majority %>% left_join(pfr, by = c("season", "pfr_id"))
 
+# get ESPN QB stats and join
 qbr <- load_espn_qbr(seasons = start_season:2025) %>%
   filter(season_type == 'Regular') %>%
   select(season, player_id, qbr_total, epa_total, pass, run, qb_plays) %>%
@@ -1310,11 +1528,13 @@ qbr <- load_espn_qbr(seasons = start_season:2025) %>%
 
 qb_wins_majority <- qb_wins_majority %>% left_join(qbr, by = c("season", "espn_id"))
 
+# get draft information on QBs and join
 draft <- load_combine(seasons = 2000:2025) %>% filter(pos == 'QB') %>%
   select(pfr_id, draft_year, draft_round, draft_ovr, school, ht, wt)
 
 qb_wins_majority <- qb_wins_majority %>% left_join(draft, by = "pfr_id")
 
+# get Pro Football Reference rushing stats and join
 pfr_rush <- load_pfr_advstats(seasons = start_season:2025, stat_type = 'rush', summary_level = 'season') %>%
   filter(pos == 'QB') %>%
   select(season, tm, pfr_id, age, g, gs, att, yds)
@@ -1332,7 +1552,6 @@ qb_wins_majority <- qb_wins_majority %>% relocate(games_played, games_started, .
 qb_wins_majority <- qb_wins_majority %>% filter(games_played >= 8)
 
 # engineer variables
-
 qb_wins_majority <- qb_wins_majority %>%
   separate(ht, into = c("feet", "inches"), sep = "-", convert = TRUE, remove = FALSE) %>%
   mutate(height_in = feet * 12 + inches)
@@ -1392,6 +1611,10 @@ features <- qb_wins_majority %>%
          wt, height_in)
 ```
 
+::: {.content-visible unless-format="revealjs"}
+### Random Forest
+:::
+
 ```{r}
 library(randomForest)
 
@@ -1402,7 +1625,12 @@ randomForest(team_wins ~ .,
              na.action = na.omit)
 ```
 
+::: {.content-visible unless-format="revealjs"}
+Hyperparameters of the random forest can be tuned via a grid search process.
+:::
+
 ```{r}
+# grid search process to tune hyperparameters
 results <- expand.grid(
   mtry = c(2, 4, 6, 8, 10, 15, 20),
   nodesize = c(1, 3, 5, 8, 10, 12)
@@ -1435,21 +1663,45 @@ best_model <- randomForest(team_wins ~ .,
 print(best_model)
 ```
 
-## Permutation Importance
+::: {.content-visible unless-format="revealjs"}
+After conducting a brief grid search, the model performance has slightly improved.
+:::
 
-```{r}
+::: {.content-visible when-format="revealjs"}
+## Permutation Importance
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Permutation Importance
+:::
+
+```{r, fig.height=7}
 imp_vals <- importance(best_model)
 
-varImpPlot(best_model, type = 1)
+varImpPlot(best_model, type = 1,
+           main = 'Permutation Importance in Random Forest Model')
 ```
 
+::: {.content-visible when-format="revealjs"}
 ## Impurity-Based Importance
+:::
 
-```{r}
-varImpPlot(best_model, type = 2)
+::: {.content-visible unless-format="revealjs"}
+### Impurity-Based Importance
+:::
+
+```{r, fig.height=7}
+varImpPlot(best_model, type = 2,
+           main = 'Impurity-Based Importance in Random Forest Model')
 ```
 
+::: {.content-visible when-format="revealjs"}
 ## SHAP Values
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### SHAP Values
+:::
 
 ```{r}
 library(fastshap)
@@ -1466,6 +1718,10 @@ shap_values <- fastshap::explain(
 )
 ```
 
+::: {.content-visible unless-format="revealjs"}
+Results could vary due to monte carlo samples. A higher number of samples will stabilize the results, but will also increase computation time. Here it is kept low to reduce computation time.
+:::
+
 ```{r}
 library(shapviz)
 baseline <- mean(predict(best_model,
@@ -1480,15 +1736,54 @@ sv <- shapviz(shap_values, X = drop_na(features[ , setdiff(names(features), "tea
 sv_importance(sv, show_numbers = TRUE)
 ```
 
+::: {.content-visible when-format="revealjs"}
 ## Waterfall Plot
+:::
+
+::: {.content-visible unless-format="revealjs"}
+### Waterfall Plot
+:::
 
 ```{r}
-sv_waterfall(object = sv, row_id = 203)
+sv_waterfall(object = sv, row_id = 203) + ggtitle('Cam Ward in 2025') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+::: {.content-visible when-format="revealjs"}
+## Waterfall Plot
+:::
+
+```{r}
+sv_waterfall(object = sv, row_id = 197) + ggtitle('Jaxson Dart in 2025') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+::: {.content-visible when-format="revealjs"}
+## Waterfall Plot
+:::
+
+```{r}
+sv_waterfall(object = sv, row_id = 195) + ggtitle('Drake Maye in 2025') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+::: {.content-visible when-format="revealjs"}
+## Waterfall Plot
+:::
+
+```{r}
+sv_waterfall(object = sv, row_id = 3) + ggtitle('Lamar Jackson in 2019') +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 
 ## Resources
 
 + [Intro to NFL Analytics Book](https://bradcongelio.com/nfl-analytics-with-r-book/)
 + [nflreadr data dictionaries](https://nflreadr.nflverse.com/articles/index.html)
++ [ggplot2 documentation](https://ggplot2.tidyverse.org/)
 + [ggplot2 theme documentation](https://ggplot2.tidyverse.org/reference/element.html)
++ [Beginner's Guide to EPA in the NFL](https://sportspassion.substack.com/p/the-beginners-guide-to-epa-in-the-nfl)
++ [gt package documentation](https://gt.rstudio.com/)
++ [Next Gen Stats Glossary](https://nextgenstats.nfl.com/glossary)
++ [shapviz package documentation](https://cran.r-project.org/web/packages/shapviz/readme/README.html)
 + [College Football package cfbfastR](https://sportsdataverse.r-universe.dev/cfbfastR)
