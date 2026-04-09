@@ -41,3 +41,7 @@ quarto render source_code.qmd --to html
 ```
 
 Both output files should now be properly rendered.
+
+## Additional Info
+
+Some of the data used in this workshop needs an API key to be accessed. This data has been stored as a csv file in the data folder for convenience. The college career stats data can be recreated with the cfb_career_stats.R file located in the code folder. The file will not run properly if you do not have an API key. You can get your own CFBD API key for free [here](https://collegefootballdata.com/key). This is not a requirement.
