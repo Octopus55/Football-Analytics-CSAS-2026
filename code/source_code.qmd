@@ -679,7 +679,7 @@ plots_combined <- grid.arrange(no_theme, minimal_theme,
 ## The Most Productive Receivers
 + Who were the most productive receivers from last season?
 
-+ How much of their production can be derivied from air yards vs. yards after the catch?
++ How much of their production can be derived from air yards vs. yards after the catch?
 
 ::: {.content-visible when-format="revealjs"}
 ## 2025 Receiving Leaders Data Setup
@@ -1261,16 +1261,16 @@ forty_2026 %>%
 
 ## Red Zone Target
 
-Our team struggled to score in the Redzone last season. Who are the best pass catchers in the Redzone from last season that we should consider acquiring?
+Our team struggled to score in the Red Zone last season. Who are the best pass catchers in the Red Zone from last season that we should consider acquiring?
 
 <details closed>
 <summary>Which dataset(s) should we use to answer this question?</summary>
-+ pbp
++ pbp, teams, players
 </details>
 
 <details closed>
 <summary>What are the steps we expect to carry out?</summary>
-+ filter pbp to only include pass plays in the Redzone
++ filter pbp to only include pass plays in the Red Zone
 + group by the receiver(id)
 + summarize receiving statistics (receptions, targets, touchdowns)
 + merge any additional information
@@ -1346,7 +1346,7 @@ strip_df <- redzone_grouped %>%
 redzone_grouped %>% ungroup() %>%
   gt() %>%
   tab_header(
-    title = "Redzone Receiving TD Leaders",
+    title = "Red Zone Receiving TD Leaders",
     subtitle = "2025 Regular Season") %>%
   gt_img_rows(headshot, height = 40) %>%
   cols_hide(c(receiver_id, team_color)) %>%

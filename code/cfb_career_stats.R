@@ -4,6 +4,7 @@
 #install.packages('cfbfastR', repos = c('https://sportsdataverse.r-universe.dev', 'https://cloud.r-project.org'))
 
 library(cfbfastR)
+library(tidyverse)
 
 # run the line below and follow the instructions to get an API key (easy and free)
 ?register_cfbd
